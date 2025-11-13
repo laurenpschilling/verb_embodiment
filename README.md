@@ -1,6 +1,6 @@
 # Verb embodiment project from Schilling et al. (2025)
 
-Our analyses are available on the verb_embodiment_analyses.Rmd file! From there, you can read in the supplemental .R scripts: clean_ratings.R, mb_cdi_verbs.R, and mb_cdi_admin_data.R.
+Our analyses are available on the `verb_embodiment_analyses.Rmd` file! From there, you can read in the supplemental .R scripts: clean_ratings.R, mb_cdi_verbs.R, and mb_cdi_admin_data.R.
 
 - clean_ratings.R cleans the raw verb embodiment ratings file
 
