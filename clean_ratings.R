@@ -21,3 +21,6 @@ verb_embod_rate <- verb_embod_wide %>%
   rename(word = variable,
          embod_m = mean,
          embod_sd = sd)
+
+# clean environment
+rm(verb_rate_wide, verb_embod_wide)
