@@ -5,7 +5,8 @@ verb_rate_wide <- read.csv('https://raw.githubusercontent.com/laurenpschilling/v
 colnames(verb_rate_wide) <- gsub("^To.", "", colnames(verb_rate_wide))
 
 # calculate verb rating mean & sd
-verb_embod_wide <- verb_rate_wide %>% 
+verb_embod_wide <- verb_rate_wide %>%
+  select(!id) %>%
   summarise(across(everything(), list(mean=~mean(. , na.rm=TRUE), sd=~sd(., na.rm=TRUE))))
 
 # create a long dataframe with mean & sd of each word
