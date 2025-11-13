@@ -1,0 +1,745 @@
+---
+title: "verb_embodiment_analyses"
+output: html_document
+date: "2025-06-01"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(broom)
+library(corrr)
+library(factoextra)
+library(ggeffects)
+library(ggrepel)
+library(kableExtra)
+library(knitr)
+library(lme4)
+library(mirt)
+library(psych)
+library(stargazer)
+library(tidyverse)
+library(wordbankr)
+```
+
+# Load data
+
+## Load verb embodiment ratings 
+
+Includes 25 adult ratings of embodiment (1-7) for the 103 verbs on the MB-CDI Words & Sentences long form (Schilling et al., 2025).
+
+```{r}
+source('https://raw.githubusercontent.com/laurenpschilling/verb_embodiment/refs/heads/main/clean_ratings.R')
+```
+
+## Load prior verb norms
+
+Includes concreteness (Brysbaert et al., 2014), imageability (Cortese & Fugett, 2004), &  prior embodiment ratings (Sidhu et al., 2014).
+
+```{r}
+source('https://raw.githubusercontent.com/laurenpschilling/verb_embodiment/refs/heads/main/mb_cdi_verbs.R')
+```
+
+## Load & clean child data
+
+Includes child demographic data from MB-CDI Words & Sentences Long Form administrations included in Wordbank (Frank et al., 2017). 
+
+```{r}
+child <- read.csv('https://raw.githubusercontent.com/laurenpschilling/verb_embodiment/refs/heads/main/frank_etal(2017).csv') %>% 
+  select(child_id, age, production, caregiver_education, sex) %>% 
+  rename(prod_size = production) %>% 
+  mutate(prod_size_z = scale(prod_size)[,1],
+         age_c = (age - 16))
+```
+
+## Load & clean MB-CDI administration data for verbs
+
+```{r}
+source('https://raw.githubusercontent.com/laurenpschilling/verb_embodiment/refs/heads/main/mb_cdi_admin_data.R')
+```
+
+## Create `verbs_wide_data`
+
+```{r}
+verbs_wide_data <- verbs_long_data %>%
+  pivot_wider(
+    names_from = item_id,
+    values_from = produces
+  ) 
+```
+
+# Child-level data
+
+## Age
+
+Mean Age: 23.4, SD Age: 4.31
+
+```{r}
+child %>% 
+  summarise(mean_age = mean(age),
+            sd_age = sd(age))
+```
+
+## Gender
+
+Female (2,463), male (2,646), NA (790)
+
+```{r}
+child %>% 
+  group_by(sex) %>% 
+  summarise(n = n())
+```
+
+## Caregiver education
+
+```{r}
+education <- child %>%
+  group_by(caregiver_education) %>% 
+  summarise(n = n()) %>% 
+  mutate(percent = n / sum(n) * 100) %>% 
+  mutate(caregiver_education = recode(caregiver_education,
+    "Primary" = "Less than secondary school",
+    "Some Secondary" = "Some secondary school",
+    "Secondary" = "Completed secondary school",
+    "Some College" = "Some college/university",
+    "College" = "Completed college/university",
+    "Some Graduate" = "Some graduate/prof. school",
+    "Graduate" = "Completed graduate/prof. school")) %>%
+    mutate(percent = round(percent, 1),
+           n = format(n, big.mark = ",")) %>%
+  mutate(
+    caregiver_education = factor(
+      caregiver_education,
+      levels = c(
+        "Less than secondary school", 
+        "Some secondary school",
+        "Completed secondary school",
+        "Some college/university",
+        "Completed college/university",
+        "Some graduate/prof. school",
+        "Completed graduate/prof. school"
+      )
+    )
+  ) %>%
+  arrange(caregiver_education)
+```
+
+### Table of caregiver education
+
+```{r}
+table <- education %>% 
+  rename(`Caregiver Education` = caregiver_education,
+         `N` = n,
+         `%` = percent) %>%
+  kable(
+    caption = "<span style='font-family: Times New Roman;'>Caregiver Education Level (N = 5899)</span>",
+    col.names = c("Caregiver Education", "N", "%"),
+    align = c("l", "r", "r"),
+    booktabs = TRUE,
+    format = "html"
+  ) %>%
+  kable_styling(full_width = FALSE, font_size = 12) %>%
+  row_spec(0, extra_css = "font-family: Times New Roman;") %>%
+  column_spec(1:3, extra_css = "font-family: Times New Roman;")
+
+print(table)
+
+rm(education, table)
+```
+
+## Calculate verb productive vocabulary size & proportion per child
+
+```{r 13}
+verb_prod_size <- verbs_long_data %>% 
+  group_by(child_id) %>% 
+  summarise(verb_prod_size = sum(produces)) 
+
+child <- child %>% 
+  left_join(verb_prod_size)
+
+rm(verb_prod_size)
+
+verb_prod_prop <- verbs_long_data %>% 
+  group_by(child_id) %>% 
+  summarise(verb_prod_prop = mean(produces)) 
+
+child <- child %>% 
+  left_join(verb_prod_prop)
+
+rm(verb_prod_prop)
+```
+
+### Plot verb productive vocabulary proportion per child
+
+```{r}
+child %>% 
+    mutate(age_bin = paste0(floor(age / 2) * 2, "-", floor(age / 2) * 2 + 1)) %>%
+  ggplot(aes(x = age_bin, y = verb_prod_prop)) +
+  geom_boxplot() +
+  labs(title = "Proportion of MB-CDI Verbs A Child Produced by Child Age",
+       x = "Age in Months",
+       y = "Proportion of MB-CDI Verbs Produced",
+       caption = "N Children = 5899; N Verbs = 103") +
+    theme_minimal() +
+theme(text = element_text(family = "Avenir"), axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12))
+```
+
+### Calculate reliability of child verb production data
+
+Cronbach's alpha = 0.993
+
+```{r}
+verbs_wide_data <- as.data.frame(verbs_wide_data)
+
+psych_verbs <- verbs_wide_data %>%
+  select(starts_with("item")) %>% 
+  psych::alpha()
+
+psych_verbs$total$raw_alpha
+
+rm(psych_verbs)
+```
+
+# Verb-level data
+
+## Verb embodiment ratings
+
+```{r}
+verb_rate_wide_data <- read.csv('https://raw.githubusercontent.com/laurenpschilling/verb_embodiment/refs/heads/main/verb_embod_rate_raw.csv')
+```
+
+### Plot verb embodiment ratings
+
+```{r}
+verb_rate_wide_data %>%
+  select(!id) %>% 
+  pivot_longer(cols = everything(), names_to = "verb", values_to = "rating") %>% 
+  ggplot(aes(x = rating)) +
+  geom_histogram() +
+  facet_wrap(~verb) +
+  theme_minimal()
+```
+
+### Calculate reliability of verb embodiment ratings
+
+Cronbach's alpha = 0.98
+
+```{r}
+psych_verb_embod <- verb_rate_wide_data %>%
+  select(!id) %>% 
+  alpha()
+
+psych_verb_embod$total$raw_alpha
+```
+
+### Calculate & plot item-test correlations of verb embodiment ratings
+
+```{r}
+itcor <- psych_verb_embod$item.stats$raw.r
+
+itcor_df <- tibble(
+  item = 1:103,
+  cor = round(psych_verb_embod$item.stats$raw.r, 2)
+) 
+
+ggplot(itcor_df, aes(x = item, y = cor)) +
+  geom_point(size = 1, alpha = 0.25) +
+  geom_line(alpha = 0.25) +
+  geom_text(aes(label = item), family = "Avenir", size = 3, position = position_jitter(width = 0.3, height = 0.08)) +
+  ylim(c(0, 1)) +
+  labs(title = "Item-Test Correlations by Verb",
+    x = "Verb",
+       y = "Item-Test Correlation") +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank()) +
+  scale_x_continuous(n.breaks = 100) +
+  theme(text = element_text(family = "Avenir"))
+
+rm(itcor, itcor_df, psych_verb_embod, verb_rate_wide_data)
+```
+
+## Summarize word-level characteristics
+
+Embodiment (N = 103, M = 5.20, SD = 0.93, Range = 2.88-6.6)
+
+Log of frequency (N = 103, M = 6.89, SD = 1.02, Range = 3.99-8.94)
+
+Concreteness (N = 103, M = 3.67, SD = 0.77, Range = 1.77-4.8)
+
+Imageability (N = 94, M = 4.30, SD = 1.10, Range = 1.7-6.5)
+
+Prior embodiment (N = 57, M = 4.88, SD = 1.00, Range = 2.87-6.5)
+
+```{r}
+verb_sum <- verb_norms %>% 
+  summarise(n_embod = sum(!is.na(embod)),
+            mean_embod = mean(embod, na.rm = T),
+            sd_embod = sd(embod, na.rm = T),
+            range_embod = paste(min(embod, na.rm = T), max(embod, na.rm = T), sep = "-"),
+            n_log_freq = sum(!is.na(log_freq)),
+            mean_log_freq = mean(log_freq, na.rm = T),
+            sd_log_freq = sd(log_freq, na.rm = T),
+            range_log_freq = paste(min(round(log_freq, 2), na.rm = T), max(round(log_freq, 2), na.rm = T), sep = "-"),
+            n_concrete = sum(!is.na(concrete)),
+            mean_concrete = mean(concrete, na.rm = T),
+            sd_concrete = sd(concrete, na.rm = T),
+            range_concrete = paste(min(concrete, na.rm = T), max(concrete, na.rm = T), sep = "-"),
+            n_image = sum(!is.na(image)),
+            mean_image = mean(image, na.rm = T),
+            sd_image = sd(image, na.rm = T),
+            range_image = paste(min(image, na.rm = T), max(image, na.rm = T), sep = "-"),
+            n_prior_embod = sum(!is.na(prior_embod)),
+            mean_prior_embod = mean(prior_embod, na.rm = T),
+            sd_prior_embod = sd(prior_embod, na.rm = T),
+            range_prior_embod = paste(min(prior_embod, na.rm = T), max(prior_embod, na.rm = T), sep = "-")
+)
+
+rm(verb_sum)
+```
+
+## Verb-level property distributions
+
+### Plot `embod`
+
+```{r}
+verb_norms %>% 
+  ggplot(aes(x = embod)) +
+  geom_histogram(bins = 50, color = "black", fill = "white") +
+  xlim(c(0, 5)) +
+  scale_x_continuous(n.breaks = 8) +
+  labs(title = "Verb Embodiment (Scale of 1-7)",
+       x = "Verb Embodiment",
+       y = "Count of Words",
+       caption = "N Verbs = 103") +
+  theme_minimal() +
+  theme(text = element_text(family = "Times New Roman"))
+```
+
+### Plot `concrete`
+
+```{r}
+verb_norms %>% 
+  ggplot(aes(x = concrete)) +
+  geom_histogram(bins = 50, color = "black", fill = "white") +
+  xlim(c(0, 5)) +
+  scale_x_continuous(n.breaks = 8) +
+  labs(title = "Verb Concreteness (Scale of 1-5)",
+       x = "Verb Concreteness",
+       y = "Count of Words",
+       caption = "N Verbs = 103") +
+  theme_minimal() +
+  theme(text = element_text(family = "Times New Roman"))
+```
+
+### Plot `image`
+
+```{r}
+verb_norms %>% 
+  ggplot(aes(x = image)) +
+  geom_histogram(bins = 50, color = "black", fill = "white") +
+  xlim(c(0, 5)) +
+  scale_x_continuous(n.breaks = 8) +
+  labs(title = "Verb Imageability (Scale of 1-7)",
+       x = "Verb Imageability",
+       y = "Count of Words",
+       caption = "N Verbs = 103") +
+  theme_minimal() +
+  theme(text = element_text(family = "Times New Roman"))
+```
+
+## Correlations of verb semantic variables
+
+Embodiment & prior embodiment (r = 0.84, p < .001)
+
+Imageability & concreteness (r = 0.86, p < .001)
+
+Embodiment & concreteness (r = 0.77, p < .001)
+
+Embodiment & imageability (r = 0.71, p < .001)
+
+```{r}
+cor.test(verb_norms$embod, verb_norms$prior_embod)
+
+cor.test(verb_norms$imageability, verb_norms$concrete)
+
+cor.test(verb_norms$embod, verb_norms$concrete)
+
+cor.test(verb_norms$embod, verb_norms$imageability)
+```
+
+## Proportion of children producing each verb
+
+```{r}
+prop_produce_verb <- verbs_long_data %>%
+  left_join(verb_norms) %>% 
+  group_by(word) %>% 
+  summarise(prop_produce_verb = round(mean(produces, na.rm = TRUE), 2)) %>%
+  select(word, prop_produce_verb)
+
+verb_norms <- verb_norms %>% 
+  left_join(prop_produce_verb)
+
+rm(prop_produce_verb)
+```
+
+### Table of `prop_produce_verb`
+
+```{r}
+verb_stats <- verb_norms %>% 
+  rename(Proportion = prop_produce_verb, Word = word) %>% 
+  arrange(desc(Proportion)) %>% 
+  select(Word, Proportion)
+
+table <- verb_stats %>%
+  kable(caption = "Descriptive Statistics for Verb Items", align = "lc") %>%
+  kable_styling(full_width = FALSE, font_size = 12)
+
+verb_stats_split <- split(verb_stats, (seq(nrow(verb_stats)) - 1) %/% 12)
+
+max_rows <- max(sapply(verb_stats_split, nrow))
+
+verb_stats_split_padded <- map(verb_stats_split, ~ {
+  n_missing <- max_rows - nrow(.x)
+  if (n_missing > 0) {
+    bind_rows(.x, tibble(
+      Item = rep(NA, n_missing),
+      `Mean (SD)` = rep(NA, n_missing)
+    ))
+  } else {
+    .x
+  }
+})
+
+wide_table <- bind_cols(verb_stats_split_padded)
+
+colnames(wide_table) <- rep(c("Item", "Proportion"), length.out = 20)
+
+align_vector <- rep(c("l", "c"), times = 1)
+
+kable(wide_table, caption = "<span style='font-family: Times New Roman;'>Proportion of Children Producing Each Verb</span>", align = align_vector) %>%
+  kable_styling(full_width = FALSE, font_size = 12) %>% 
+   row_spec(0, extra_css = "font-family: Times New Roman;") %>%
+  column_spec(1:20, extra_css = "font-family: Times New Roman;")
+
+rm(align_vector, max_rows, table, verb_stats, verb_stats_split, verb_stats_split_padded, wide_table)
+```
+
+### Plot `prop_produce_verb` by `embod_z`
+
+```{r}
+verb_norms %>%  
+  ggplot(aes(x = embod_z, y = prop_produce_verb, label = word)) +
+  geom_point(size = 1, alpha = 0.25) +
+  geom_text_repel(family = "Times New Roman", size = 4, box.padding = 0.2, max.overlaps = 47) +
+  ylim(c(0, 1)) +
+  labs(title = "Proportion of Children Producing Each Verb by Embodiment",
+       x = "Verb Embodiment (Z)",
+       y = "Proportion of Children",
+       caption = "N Children = 5899; N Verbs = 47") +
+  theme_minimal() +
+  theme(text = element_text(family = "Times New Roman"))
+```
+
+### Calculate correlation of `prop_produce_verb` & `embod_z`
+
+r = 0.43, p < 0.001
+
+```{r}
+cor.test(verb_norms$prop_produce_verb, verb_norms$embod_z)
+```
+
+# Multilevel modeling
+
+Employ explanatory item response theory (de Boeck & Wilson, 2004). Fit a series of generalized linear mixed-effects models (Bates et al., 2015).
+
+## Create `full` data frame
+
+```{r}
+full <- verbs_long_data %>% 
+  left_join(child) %>% 
+  left_join(verb_norms) %>% 
+  na.omit()
+```
+
+## Model each semantic variable independently 
+
+### Embodiment
+
+```{r}
+# m1_embod <- glmer(produces ~ embod_z + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m1_embod)
+ 
+# saveRDS(m1_embod, file = "m1_embod.rds")
+
+m1_embod <- readRDS("m1_embod.rds")
+
+# m2_embod <- glmer(produces ~ embod_z + log_freq_z +
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m2_embod)
+ 
+# saveRDS(m2_embod, file = "m2_embod.rds")
+
+m2_embod <- readRDS("m2_embod.rds")
+
+# m3_embod <- glmer(produces ~ embod_z + log_freq_z + age_c + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m3_embod)
+
+# saveRDS(m3_embod, file = "m3_embod.rds")
+
+m3_embod <- readRDS("m3_embod.rds")
+
+# m4_embod <- glmer(produces ~ embod_z + log_freq_z + age_c + age_c*embod_z + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m4_embod)
+
+# saveRDS(m4_embod, file = "m4_embod.rds")
+
+m4_embod <- readRDS("m4_embod.rds")
+
+summary(m4_embod)
+```
+
+#### Plot full embodiment model
+
+```{r}
+p_embod <- ggeffect(m4_embod, terms = c("embod_z", "age_c[0, 2, 4, 6, 8, 10, 12, 14]")) %>% 
+  plot()
+
+p_embod + 
+  scale_x_continuous(
+    breaks = c(-2, -1, 0, 1, 2),
+  ) +
+  labs(
+    title = "Predicted Probability of Verb Production by Age & Embodiment",
+    x = "Embodiment Rating",
+    y = "Predicted Probability",
+    color = "Age Group" # legend label if needed
+  ) +
+  scale_color_discrete(
+    labels = c("16mo", "18mo", "20mo", "22mo", "24mo", "26mo", "28mo", "30mo")) +
+  theme(text = element_text(family = "Avenir"), axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12))
+
+rm(p_embod)
+```
+
+### Concreteness
+
+```{r}
+# m1_concrete <- glmer(produces ~ concrete_z + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m1_concrete)
+
+# saveRDS(m1_concrete, file = "m1_concrete.rds")
+
+m1_concrete <- readRDS("m1_concrete.rds")
+
+# m2_concrete <- glmer(produces ~ concrete_z + log_freq_z + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+#
+# summary(m2_concrete)
+ 
+# saveRDS(m2_concrete, file = "m2_concrete.rds")
+
+m2_concrete <- readRDS("m2_concrete.rds")
+
+# m3_concrete <- glmer(produces ~ concrete_z + log_freq_z + age_c + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m3_concrete)
+
+# saveRDS(m3_concrete, file = "m3_concrete.rds")
+
+m3_concrete <- readRDS("m3_concrete.rds")
+
+# m4_concrete <- glmer(produces ~ concrete_z + log_freq_z + age_c + age_c*concrete_z + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m4_concrete)
+ 
+# saveRDS(m4_concrete, file = "m4_concrete.rds")
+
+m4_concrete <- readRDS("m4_concrete.rds")
+```
+
+#### Plot full concreteness model
+
+```{r}
+p_concrete <- ggeffect(m4_concrete, terms = c("concrete_z", "age_c[0, 2, 4, 6, 8, 10, 12, 14]")) %>% 
+  plot()
+
+p_concrete + 
+  scale_x_continuous(
+    breaks = c(-2, -1, 0, 1, 2),
+  ) +
+  labs(
+    title = "Predicted Probability of Verb Production by Age & Concreteness",
+    x = "Concreteness Rating",
+    y = "Predicted Probability",
+    color = "Age Group" # legend label if needed
+  ) +
+  scale_color_discrete(
+    labels = c("16mo", "18mo", "20mo", "22mo", "24mo", "26mo", "28mo", "30mo")) +
+  theme(text = element_text(family = "Avenir"), axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12))
+
+rm(p_concrete)
+```
+
+### Imageability
+
+```{r}
+# m1_image <- glmer(produces ~ image_z + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m1_image)
+
+# saveRDS(m1_image, file = "m1_image.rds")
+
+m1_image <- readRDS("m1_image.rds")
+
+# m2_image <- glmer(produces ~ image_z + log_freq_z +
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m2_image)
+
+# saveRDS(m2_image, file = "m2_image.rds")
+
+m2_image <- readRDS("m2_image.rds")
+
+# m3_image <- glmer(produces ~ image_z + log_freq_z + age_c + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+ 
+# summary(m3_image)
+ 
+# saveRDS(m3_image, file = "m3_image.rds")
+
+m3_image <- readRDS("m3_image.rds")
+
+# m4_image <- glmer(produces ~ image_z + log_freq_z + age_c + age_c*image_z + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m4_image)
+ 
+# saveRDS(m4_image, file = "m4_image.rds")
+
+m4_image <- readRDS("m4_image.rds")
+```
+
+#### Plot full imageability model
+
+```{r}
+p_image <- ggeffect(m4_image, terms = c("image_z", "age_c[0, 2, 4, 6, 8, 10, 12, 14]")) %>% 
+  plot()
+
+p_image + 
+  scale_x_continuous(
+    breaks = c(-2, -1, 0, 1, 2),
+  ) +
+  labs(
+    title = "Predicted Probability of Verb Production by Age & Imageability",
+    x = "Imageability Rating",
+    y = "Predicted Probability",
+    color = "Age Group"
+  ) +
+  scale_color_discrete(
+    labels = c("16mo", "18mo", "20mo", "22mo", "24mo", "26mo", "28mo", "30mo")) +
+  theme(text = element_text(family = "Avenir"), axis.text.x = element_text(size = 12), axis.text.y = element_text(size = 12))
+
+rm(p_image)
+```
+
+### Table comparing independent models
+
+```{r}
+table_comp_ind <- stargazer(
+  m4_embod, m4_concrete, m4_image, 
+  column.labels = "Embodiment", "Concreteness", "Imageability",
+  type = "html",
+  title = "GLMER Models Predicting Verb Production from Semantic Variables",
+  digits = 2,
+  single.row = TRUE,
+  covariate.labels = c("Embodiment (Z)", "Concreteness (Z)", "Imageability (Z)", "Log Frequency (Z)", "Age", "Age x Embodiment (Z)", "Age x Concreteness (Z)", "Age x Imageability (Z)"),
+  dep.var.caption = "",
+  dep.var.labels = "")
+
+cat(table_comp_ind, sep = "\n", file = "table_comp_ind.html")
+```
+
+## Model semantic variables together
+
+### Embod + concrete model
+
+```{r}
+# m_embod_conc <- glmer(produces ~ embod_z + concrete_z + age_c + log_freq_z + age_c*concrete_z + age_c*embod_z + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m_embod_conc)
+  
+# saveRDS(m_embod_conc, file = "m_embod_conc.rds")
+
+m_embod_conc <- readRDS("m_embod_conc.rds")
+```
+
+### Embod + image model
+
+```{r}
+# m_embod_image <- glmer(produces ~ embod_z + image_z + age_c + log_freq_z + age_c*image_z + age_c*embod_z + 
+#               (1|child_id) + (1|item_id),
+#             data = full,
+#             family = binomial)
+
+# summary(m_embod_image)
+  
+# saveRDS(m_embod_image, file = "m_embod_image.rds")
+
+m_embod_image <- readRDS("m_embod_image.rds")
+```
+
+### Table of all full models
+
+```{r}
+table_comp_all <- stargazer(
+  m4_embod, m4_concrete, m4_image, m_embod_conc, m_embod_image,
+  type = "html",
+  title = "GLMER Models Predicting Verb Production",
+  covariate.labels = c("Embodiment (Z)", "Concreteness (Z)", "Imageability (Z)", "Log Frequency (Z)", "Age", "Age x Embodiment (Z)", "Age x Concreteness (Z)", "Age x Imageability (Z)"),
+  digits = 2,
+  single.row = TRUE,
+  dep.var.caption = "",
+  dep.var.labels = "")
+
+cat(table_comp_all, sep = "\n", file = "table_comp_all.html")
+```
+
