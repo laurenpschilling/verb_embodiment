@@ -17,8 +17,8 @@ Under the "Multilevel Modeling" section, you'll find many generalized linear mix
 
 Thanks for your interest, and please feel free to reach out to us via email at lschilling@g.harvard.edu if you have any questions!
 
-**References
-**
+**References**
+
 Bates, D., Mächler, M., Bolker, B., & Walker, S. (2015). Fitting linear mixed-effects models using lme4. _Journal of Statistical Software, 67_(1), 1–48. https://doi.org/10.18637/jss.v067.i01
 
 Brysbaert, M., Warriner, A. B., & Kuperman, V. (2014). Concreteness ratings for 40 thousand generally known English word lemmas. _Behavior Research Methods, 46_(3), 904–911. https://doi.org/10.3758/s13428-013-0403-5
