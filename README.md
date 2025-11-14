@@ -4,7 +4,7 @@ Our analyses are available on the `verb_embodiment_analyses.Rmd` file! From ther
 
 - `clean_ratings.R` cleans the raw verb embodiment ratings file
 
-- `mb_cdi_verbs.R` extracts all verbs from the MB-CDI Words & Sentences Long Form (Marchman et al., 2023) and adds all verb norm data, including:
+- `mb_cdi_verbs.R` extracts all verbs from the MB-CDI Words & Sentences Long Form (Marchman et al., 2023) and adds verb norm data, including:
   - Our embodiment ratings (Schilling et al., 2025)
   - Prior embodiment ratings (Sidhu et al., 2014)
   - Concreteness ratings (Brysbaert et al., 2014)
