@@ -1,8 +1,10 @@
 # load north american english mb-cdi words & sentences data from wordbank (frank et al., 2017)
-english_ws <- get_item_data("English (American)", "WS")
+english_ws_items <- read.csv('https://raw.githubusercontent.com/laurenpschilling/verb_embodiment/refs/heads/main/mb_cdi_items.csv') |> 
+  filter(language == 'English (American)',
+         form == 'WS')
 
 # select & clean verbs
-english_ws_verbs <- english_ws %>% 
+english_ws_verbs <- english_ws_items %>% 
   filter(category == 'action_words') %>% 
   select(item_id, item_definition) %>% 
   mutate(item_definition = word(item_definition, 1)) %>%
@@ -49,7 +51,7 @@ verb_norms <- english_ws_verbs %>%
          )
 
 # clean environment
-rm(english_ws, concrete, embod, english_ws_verbs, freq, image, prior_embod, verb_embod_rate)
+rm(english_ws_items, concrete, embod, english_ws_verbs, freq, image, prior_embod, verb_embod_rate)
 
 # references
 
@@ -62,4 +64,3 @@ rm(english_ws, concrete, embod, english_ws_verbs, freq, image, prior_embod, verb
 ## MacWhinney, B. (2000). The CHILDES Project: Tools for analyzing talk: The database (3rd ed.). Lawrence Erlbaum Associates Publishers
 
 ## Sidhu, D. M., Kwan, R., Pexman, P. M., & Siakaluk, P. D. (2014). Effects of relative embodiment in lexical and semantic processing of verbs. Acta Psychologica, 149, 32–39. https://doi.org/10.1016/j.actpsy.2014.02.009
-
