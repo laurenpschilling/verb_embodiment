@@ -11,7 +11,7 @@ Our analyses are available on the `verb_embodiment_analyses.Rmd` file! From ther
   - Imageability ratings (Cortese & Fugett, 2004)
   - Log of word frequency in child-directed speech (MacWhinney, 2000)
 
--  `mb_cdi_admin_data.R` extracts all verb production data from the MB-CDI Words & Sentences Long Form administrations with typically developing, monolingual North American English-speaking children ages 16-3 months in the Wordbank repository (Frank et al., 2017)
+-  `mb_cdi_admin_data.R` extracts all verb production data from the MB-CDI Words & Sentences Long Form administrations with typically developing, monolingual North American English-speaking children ages 16-30 months in the Wordbank repository (Frank et al., 2017)
 
 Under the "Multilevel Modeling" section, you'll find many generalized linear mixed-effects models that are pre-baked to save time. You can download the model `.rds` files from our main folder. 
 
